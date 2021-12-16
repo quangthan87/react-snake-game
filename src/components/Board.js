@@ -4,7 +4,7 @@ import Pixel from "./Pixel";
 
 import { PIXEL_SIZE } from "../constants";
 
-const Board = React.memo(({ pixels }) => {
+const Board = ({ pixels, showGrid }) => {
   return (
     <React.Fragment>
       {pixels.map((pixel) => (
@@ -13,10 +13,11 @@ const Board = React.memo(({ pixels }) => {
           left={pixel.position.x * PIXEL_SIZE}
           top={pixel.position.y * PIXEL_SIZE}
           background={pixel.background}
+          border={showGrid}
         />
       ))}
     </React.Fragment>
   );
-});
+};
 
-export default Board;
+export default React.memo(Board);

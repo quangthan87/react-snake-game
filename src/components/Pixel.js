@@ -7,17 +7,19 @@ const Square = styled.div.attrs((props) => ({
   style: {
     left: props.left + "px",
     top: props.top + "px",
-    background: props.background
+    background: props.background,
+    border: props.border ? "1px solid #aaa" : "none"
   }
 }))`
   position: absolute;
   width: ${PIXEL_SIZE + "px"};
   height: ${PIXEL_SIZE + "px"};
-  border: 1px solid #aaa;
 `;
 
-const Pixel = ({ left, top, background }) => {
-  return <Square left={left} top={top} background={background} />;
+const Pixel = ({ left, top, background, border }) => {
+  return (
+    <Square left={left} top={top} background={background} border={border} />
+  );
 };
 
 export default Pixel;

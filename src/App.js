@@ -31,8 +31,9 @@ const App = () => {
   const [dirQueue, setDirQueue] = useState([]);
   const [snakePos, setSnakePos] = useState(initialSnakePos);
   const [foodPos, setFoodPos] = useState({ x: COLS / 2, y: ROWS / 2 });
-  const [gameOver, setGameOver] = useState(false);
+  const [gameOver, setGameOver] = useState(null);
   const [paused, setPaused] = useState(false);
+  const [showGrid, setShowGrid] = useState(false);
 
   const moveSnake = () => {
     let currentDir = direction;
@@ -55,7 +56,7 @@ const App = () => {
 
       // Snake hit wall
       if (head.y >= ROWS || head.y < 0 || head.x < 0 || head.x >= COLS) {
-        setGameOver(true);
+        setGameOver("lose");
 
         return prevSnake;
       }
@@ -80,7 +81,7 @@ const App = () => {
 
       // Snake hit its own body
       if (prevSnake.some((p) => areSamePos(p, nextHead))) {
-        setGameOver(true);
+        setGameOver("lose");
 
         return prevSnake;
       }
@@ -144,10 +145,14 @@ const App = () => {
     // Filter out snake positions
     const availPixels = pixels.filter(
       (pixel) =>
-        !snakePos.some(
-          (p) => areSamePos(p, pixel.position) && !areSamePos(pixel, foodPos)
-        )
+        !snakePos.some((p) => areSamePos(p, pixel.position)) &&
+        !areSamePos(foodPos, pixel.position)
     );
+
+    if (availPixels.length === 0) {
+      setGameOver("win");
+      return;
+    }
 
     const idx = Math.floor(Math.random() * availPixels.length);
 
@@ -155,11 +160,10 @@ const App = () => {
   };
 
   const handleReset = () => {
-    setGameOver(false);
+    setSnakePos(initialSnakePos);
+    setGameOver(null);
     setDirection("right");
     setDirQueue([]);
-    setSnakePos(initialSnakePos);
-    spawnFood();
   };
 
   const handlePause = () => {
@@ -167,10 +171,10 @@ const App = () => {
   };
 
   useEffect(() => {
-    spawnFood();
-  }, []);
-
-  useEffect(() => {}, [snakePos]);
+    if (!gameOver) {
+      spawnFood();
+    }
+  }, [gameOver]);
 
   useEffect(() => {
     if (!gameOver) {
@@ -187,14 +191,20 @@ const App = () => {
     gameOver || paused ? null : 50
   );
 
+  const handleShowGrid = (e) => {
+    setShowGrid(e.target.checked);
+  };
+
   return (
     <React.Fragment>
+      <input type="checkbox" id="showGrid" onChange={handleShowGrid} />
+      <label htmlFor="showGrid">Show grid</label>
       <Canvas
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
-        borderColor={!gameOver ? "black" : "red"}
+        borderColor={!gameOver ? "black" : gameOver === "win" ? "green" : "red"}
       >
-        <Board pixels={pixels} />
+        <Board pixels={pixels} showGrid={showGrid} />
         <Snake positions={snakePos} />
         <Food position={foodPos} />
       </Canvas>
