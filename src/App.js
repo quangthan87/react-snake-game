@@ -28,12 +28,28 @@ const initialSnakePos = [
 
 const App = () => {
   const [direction, setDirection] = useState("right");
+  const [dirQueue, setDirQueue] = useState([]);
   const [snakePos, setSnakePos] = useState(initialSnakePos);
   const [foodPos, setFoodPos] = useState({ x: COLS / 2, y: ROWS / 2 });
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
 
-  const move = (dir) => {
+  const moveSnake = () => {
+    let currentDir = direction;
+    const queue = [...dirQueue];
+
+    // Get current direction from queue
+    while (queue.length > 0) {
+      let candidateDir = queue.shift();
+
+      if (!areOpposite(candidateDir, currentDir)) {
+        currentDir = candidateDir;
+        setDirQueue(queue);
+        setDirection(currentDir);
+        break;
+      }
+    }
+
     setSnakePos((prevSnake) => {
       const head = prevSnake[prevSnake.length - 1];
 
@@ -46,18 +62,18 @@ const App = () => {
 
       let nextHead;
 
-      switch (dir) {
+      switch (currentDir) {
         case "right":
-          nextHead = { x: head.x + 1, y: head.y };
+          nextHead = { ...head, x: head.x + 1 };
           break;
         case "left":
-          nextHead = { x: head.x - 1, y: head.y };
+          nextHead = { ...head, x: head.x - 1 };
           break;
         case "up":
-          nextHead = { x: head.x, y: head.y - 1 };
+          nextHead = { ...head, y: head.y - 1 };
           break;
         case "down":
-          nextHead = { x: head.x, y: head.y + 1 };
+          nextHead = { ...head, y: head.y + 1 };
           break;
         default:
       }
@@ -79,49 +95,49 @@ const App = () => {
     });
   };
 
-  const handleChangeDirection = useCallback((e) => {
-    setDirection((prevDirection) => {
+  const handleKeyDown = useCallback((e) => {
+    setDirQueue((prevQueue) => {
       switch (e.key) {
         case "ArrowLeft":
         case "a":
         case "A":
-          if (prevDirection !== "right") {
-            return "left";
-          } else {
-            return prevDirection;
-          }
+          return [...prevQueue, "left"];
         case "ArrowRight":
         case "d":
         case "D":
-          if (prevDirection !== "left") {
-            return "right";
-          } else {
-            return prevDirection;
-          }
+          return [...prevQueue, "right"];
         case "ArrowUp":
         case "w":
         case "W":
-          if (prevDirection !== "down") {
-            return "up";
-          } else {
-            return prevDirection;
-          }
+          return [...prevQueue, "up"];
         case "ArrowDown":
         case "s":
         case "S":
-          if (prevDirection !== "up") {
-            return "down";
-          } else {
-            return prevDirection;
-          }
+          return [...prevQueue, "down"];
         default:
-          return prevDirection;
+          return prevQueue;
       }
     });
   }, []);
 
   const areSamePos = (pos1, pos2) => {
     return pos1.x === pos2.x && pos1.y === pos2.y;
+  };
+
+  const areOpposite = (dir1, dir2) => {
+    if (dir1 === "left" && dir2 === "right") {
+      return true;
+    }
+    if (dir1 === "right" && dir2 === "left") {
+      return true;
+    }
+    if (dir1 === "up" && dir2 === "down") {
+      return true;
+    }
+    if (dir1 === "down" && dir2 === "up") {
+      return true;
+    }
+    return false;
   };
 
   const spawnFood = () => {
@@ -141,6 +157,7 @@ const App = () => {
   const handleReset = () => {
     setGameOver(false);
     setDirection("right");
+    setDirQueue([]);
     setSnakePos(initialSnakePos);
     spawnFood();
   };
@@ -153,17 +170,19 @@ const App = () => {
     spawnFood();
   }, []);
 
+  useEffect(() => {}, [snakePos]);
+
   useEffect(() => {
     if (!gameOver) {
-      window.addEventListener("keydown", handleChangeDirection);
+      window.addEventListener("keydown", handleKeyDown);
     } else {
-      window.removeEventListener("keydown", handleChangeDirection);
+      window.removeEventListener("keydown", handleKeyDown);
     }
-  }, [gameOver, handleChangeDirection]);
+  }, [gameOver, handleKeyDown]);
 
   useInterval(
     () => {
-      move(direction);
+      moveSnake();
     },
     gameOver || paused ? null : 50
   );
