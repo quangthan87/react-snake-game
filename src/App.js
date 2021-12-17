@@ -1,12 +1,31 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useInterval } from "./hooks/useInterval";
 
+import styled from "styled-components";
+
 import Canvas from "./components/Canvas";
 import Board from "./components/Board";
 import Snake from "./components/Snake";
 import Food from "./components/Food";
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT, ROWS, COLS } from "./constants";
+import { areSamePos, areOpposite } from "./utils";
+
+const Container = styled.div`
+  display: grid;
+  justify-content: center;
+  gap: 4px;
+`;
+
+const ScoreBar = styled.div`
+  display: flex;
+  justify-content: space-between;
+`;
+
+const ControlBar = styled.div`
+  display: flex;
+  justify-content: space-between;
+`;
 
 const pixels = [];
 
@@ -34,6 +53,15 @@ const App = () => {
   const [gameOver, setGameOver] = useState(null);
   const [paused, setPaused] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
+  const [score, setScore] = useState(0);
+  const [highestScore, setHighestScore] = useState(0);
+
+  useInterval(
+    () => {
+      moveSnake();
+    },
+    gameOver || paused ? null : 50
+  );
 
   const moveSnake = () => {
     let currentDir = direction;
@@ -51,50 +79,75 @@ const App = () => {
       }
     }
 
-    setSnakePos((prevSnake) => {
-      const head = prevSnake[prevSnake.length - 1];
+    const currSnakePos = [...snakePos];
+    const head = currSnakePos[currSnakePos.length - 1];
 
-      // Snake hit wall
-      if (head.y >= ROWS || head.y < 0 || head.x < 0 || head.x >= COLS) {
-        setGameOver("lose");
+    // Snake hit wall
+    if (head.y >= ROWS || head.y < 0 || head.x < 0 || head.x >= COLS) {
+      setGameOver("lose");
+      return;
+    }
 
-        return prevSnake;
-      }
+    let nextHead;
 
-      let nextHead;
+    switch (currentDir) {
+      case "right":
+        nextHead = { ...head, x: head.x + 1 };
+        break;
+      case "left":
+        nextHead = { ...head, x: head.x - 1 };
+        break;
+      case "up":
+        nextHead = { ...head, y: head.y - 1 };
+        break;
+      case "down":
+        nextHead = { ...head, y: head.y + 1 };
+        break;
+      default:
+    }
 
-      switch (currentDir) {
-        case "right":
-          nextHead = { ...head, x: head.x + 1 };
-          break;
-        case "left":
-          nextHead = { ...head, x: head.x - 1 };
-          break;
-        case "up":
-          nextHead = { ...head, y: head.y - 1 };
-          break;
-        case "down":
-          nextHead = { ...head, y: head.y + 1 };
-          break;
-        default:
-      }
+    // Snake hit its own body
+    if (currSnakePos.some((p) => areSamePos(p, nextHead))) {
+      setGameOver("lose");
+      return;
+    }
 
-      // Snake hit its own body
-      if (prevSnake.some((p) => areSamePos(p, nextHead))) {
-        setGameOver("lose");
-
-        return prevSnake;
-      }
-
-      // Eat food
-      if (areSamePos(nextHead, foodPos)) {
-        spawnFood();
-        return [...prevSnake, nextHead];
-      } else {
-        return [...prevSnake.slice(1), nextHead];
-      }
-    });
+    // Eat food
+    if (areSamePos(nextHead, foodPos)) {
+      setSnakePos([...currSnakePos, nextHead]);
+      setScore((s) => s + 1);
+    } else {
+      setSnakePos([...currSnakePos.splice(1), nextHead]);
+    }
   };
+
+  const spawnFood = () => {
+    // Filter out snake positions
+    const availPixels = pixels.filter(
+      (pixel) =>
+        !snakePos.some((p) => areSamePos(p, pixel.position)) &&
+        !areSamePos(foodPos, pixel.position)
+    );
+
+    if (availPixels.length === 0) {
+      setGameOver("win");
+      return;
+    }
+
+    const idx = Math.floor(Math.random() * availPixels.length);
+
+    setFoodPos(availPixels[idx].position);
+  };
+
+  useEffect(() => {
+    if (!gameOver) {
+      spawnFood();
+    } else {
+      if (score > highestScore) {
+        setHighestScore(score);
+      }
+    }
+  }, [gameOver, score, highestScore]);
 
   const handleKeyDown = useCallback((e) => {
     setDirQueue((prevQueue) => {
@@ -121,27 +174,15 @@ const App = () => {
     });
   }, []);
 
-  const areSamePos = (pos1, pos2) => {
-    return pos1.x === pos2.x && pos1.y === pos2.y;
-  };
+  useEffect(() => {
+    if (!gameOver) {
+      window.addEventListener("keydown", handleKeyDown);
+    } else {
+      window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [gameOver, handleKeyDown]);
 
-  const areOpposite = (dir1, dir2) => {
-    if (dir1 === "left" && dir2 === "right") {
-      return true;
-    }
-    if (dir1 === "right" && dir2 === "left") {
-      return true;
-    }
-    if (dir1 === "up" && dir2 === "down") {
-      return true;
-    }
-    if (dir1 === "down" && dir2 === "up") {
-      return true;
-    }
-    return false;
-  };
-
-  const spawnFood = () => {
+  useEffect(() => {
     // Filter out snake positions
     const availPixels = pixels.filter(
       (pixel) =>
@@ -153,52 +194,30 @@ const App = () => {
       setGameOver("win");
       return;
     }
-
-    const idx = Math.floor(Math.random() * availPixels.length);
-
-    setFoodPos(availPixels[idx].position);
-  };
+  }, [snakePos, foodPos]);
 
   const handleReset = () => {
     setSnakePos(initialSnakePos);
     setGameOver(null);
     setDirection("right");
     setDirQueue([]);
+    setScore(0);
   };
 
   const handlePause = () => {
     setPaused((prevState) => !prevState);
   };
 
-  useEffect(() => {
-    if (!gameOver) {
-      spawnFood();
-    }
-  }, [gameOver]);
-
-  useEffect(() => {
-    if (!gameOver) {
-      window.addEventListener("keydown", handleKeyDown);
-    } else {
-      window.removeEventListener("keydown", handleKeyDown);
-    }
-  }, [gameOver, handleKeyDown]);
-
-  useInterval(
-    () => {
-      moveSnake();
-    },
-    gameOver || paused ? null : 50
-  );
-
   const handleShowGrid = (e) => {
     setShowGrid(e.target.checked);
   };
 
   return (
-    <React.Fragment>
-      <input type="checkbox" id="showGrid" onChange={handleShowGrid} />
-      <label htmlFor="showGrid">Show grid</label>
+    <Container>
+      <ScoreBar>
+        <h4>Score: {score}</h4>
+        <h4>Highest Score: {highestScore}</h4>
+      </ScoreBar>
       <Canvas
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
@@ -208,11 +227,19 @@ const App = () => {
         <Snake positions={snakePos} />
         <Food position={foodPos} />
       </Canvas>
-      {gameOver && <button onClick={handleReset}>Play again</button>}
-      {!gameOver && (
-        <button onClick={handlePause}>{paused ? "Resume" : "Pause"}</button>
-      )}
-    </React.Fragment>
+      <ControlBar>
+        <div>
+          <input type="checkbox" id="showGrid" onChange={handleShowGrid} />
+          <label htmlFor="showGrid">Show grid</label>
+        </div>
+        <div>
+          {gameOver && <button onClick={handleReset}>Play again</button>}
+          {!gameOver && (
+            <button onClick={handlePause}>{paused ? "Resume" : "Pause"}</button>
+          )}
+        </div>
+      </ControlBar>
+    </Container>
   );
 };
 
