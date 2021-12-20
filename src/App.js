@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useReducer } from "react";
 import { useInterval } from "./hooks/useInterval";
+import { areSamePos, areOpposite } from "./utils";
 
 import styled from "styled-components";
 
@@ -9,7 +10,6 @@ import Snake from "./components/Snake";
 import Food from "./components/Food";
 
 import { CANVAS_WIDTH, CANVAS_HEIGHT, ROWS, COLS } from "./constants";
-import { areSamePos, areOpposite } from "./utils";
 
 const Container = styled.div`
   display: grid;
@@ -39,177 +39,214 @@ for (let i = 0; i < ROWS; i++) {
   }
 }
 
-const initialSnakePos = [
-  { x: 0, y: 0 },
-  { x: 1, y: 0 },
-  { x: 2, y: 0 }
-];
+const initialState = {
+  snake: [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 2, y: 0 }
+  ],
+  food: {},
+  direction: "right",
+  directionQueue: [],
+  gameOver: null,
+  paused: false,
+  score: 0,
+  highestScore: 0
+};
+
+const reducer = (state, action) => {
+  const {
+    snake,
+    food,
+    direction,
+    directionQueue,
+    paused,
+    score,
+    highestScore
+  } = state;
+
+  switch (action.type) {
+    case "SNAKE_STEP":
+      let currentDir = direction;
+      const queue = [...directionQueue];
+
+      // Get current direction from queue
+      while (queue.length > 0) {
+        let candidateDir = queue.shift();
+
+        if (!areOpposite(candidateDir, currentDir)) {
+          currentDir = candidateDir;
+          break;
+        }
+      }
+
+      const currSnake = [...snake];
+      const head = currSnake[currSnake.length - 1];
+
+      // Snake hit wall
+      if (head.y >= ROWS || head.y < 0 || head.x < 0 || head.x >= COLS) {
+        return {
+          ...state,
+          gameOver: "lose"
+        };
+      }
+
+      let nextHead;
+
+      switch (currentDir) {
+        case "right":
+          nextHead = { ...head, x: head.x + 1 };
+          break;
+        case "left":
+          nextHead = { ...head, x: head.x - 1 };
+          break;
+        case "up":
+          nextHead = { ...head, y: head.y - 1 };
+          break;
+        case "down":
+          nextHead = { ...head, y: head.y + 1 };
+          break;
+        default:
+      }
+
+      // Snake hit its own body
+      if (currSnake.some((p) => areSamePos(p, nextHead))) {
+        return {
+          ...state,
+          gameOver: "lose"
+        };
+      }
+
+      // Eat food
+      if (areSamePos(nextHead, food)) {
+        return {
+          ...state,
+          snake: [...currSnake, nextHead],
+          direction: currentDir,
+          directionQueue: queue,
+          score: score + 1
+        };
+      } else {
+        return {
+          ...state,
+          snake: [...currSnake.splice(1), nextHead],
+          direction: currentDir,
+          directionQueue: queue
+        };
+      }
+    case "SPAWN_FOOD":
+      const availPixels = pixels.filter(
+        (pixel) =>
+          !snake.some((p) => areSamePos(p, pixel.position)) &&
+          !areSamePos(food, pixel.position)
+      );
+
+      if (availPixels.length === 0) {
+        return {
+          ...state,
+          gameOver: "win"
+        };
+      }
+
+      const idx = Math.floor(Math.random() * availPixels.length);
+
+      return {
+        ...state,
+        food: availPixels[idx].position
+      };
+    case "CHANGE_DIRECTION":
+      return {
+        ...state,
+        directionQueue: [...directionQueue, action.payload]
+      };
+    case "PAUSE_GAME":
+      return {
+        ...state,
+        paused: !paused
+      };
+    case "RESET_GAME":
+      return {
+        ...initialState,
+        highestScore: highestScore
+      };
+    case "SET_HIGHEST_SCORE":
+      return {
+        ...state,
+        highestScore: score > highestScore ? score : highestScore
+      };
+    case "TOGGLE_GRID":
+      return {
+        ...state,
+        showGrid: action.payload
+      };
+    default:
+  }
+};
 
 const App = () => {
-  const [direction, setDirection] = useState("right");
-  const [dirQueue, setDirQueue] = useState([]);
-  const [snakePos, setSnakePos] = useState(initialSnakePos);
-  const [foodPos, setFoodPos] = useState({ x: COLS / 2, y: ROWS / 2 });
-  const [gameOver, setGameOver] = useState(null);
-  const [paused, setPaused] = useState(false);
-  const [showGrid, setShowGrid] = useState(false);
-  const [score, setScore] = useState(0);
-  const [highestScore, setHighestScore] = useState(0);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const { snake, food, gameOver, paused, score, highestScore, showGrid } =
+    state;
 
   useInterval(
     () => {
-      moveSnake();
+      dispatch({ type: "SNAKE_STEP" });
     },
     gameOver || paused ? null : 50
   );
 
-  const moveSnake = () => {
-    let currentDir = direction;
-    const queue = [...dirQueue];
-
-    // Get current direction from queue
-    while (queue.length > 0) {
-      let candidateDir = queue.shift();
-
-      if (!areOpposite(candidateDir, currentDir)) {
-        currentDir = candidateDir;
-        setDirQueue(queue);
-        setDirection(currentDir);
-        break;
-      }
-    }
-
-    const currSnakePos = [...snakePos];
-    const head = currSnakePos[currSnakePos.length - 1];
-
-    // Snake hit wall
-    if (head.y >= ROWS || head.y < 0 || head.x < 0 || head.x >= COLS) {
-      setGameOver("lose");
-      return;
-    }
-
-    let nextHead;
-
-    switch (currentDir) {
-      case "right":
-        nextHead = { ...head, x: head.x + 1 };
-        break;
-      case "left":
-        nextHead = { ...head, x: head.x - 1 };
-        break;
-      case "up":
-        nextHead = { ...head, y: head.y - 1 };
-        break;
-      case "down":
-        nextHead = { ...head, y: head.y + 1 };
-        break;
-      default:
-    }
-
-    // Snake hit its own body
-    if (currSnakePos.some((p) => areSamePos(p, nextHead))) {
-      setGameOver("lose");
-      return;
-    }
-
-    // Eat food
-    if (areSamePos(nextHead, foodPos)) {
-      setSnakePos([...currSnakePos, nextHead]);
-      setScore((s) => s + 1);
-    } else {
-      setSnakePos([...currSnakePos.splice(1), nextHead]);
-    }
-  };
-
-  const spawnFood = () => {
-    // Filter out snake positions
-    const availPixels = pixels.filter(
-      (pixel) =>
-        !snakePos.some((p) => areSamePos(p, pixel.position)) &&
-        !areSamePos(foodPos, pixel.position)
-    );
-
-    if (availPixels.length === 0) {
-      setGameOver("win");
-      return;
-    }
-
-    const idx = Math.floor(Math.random() * availPixels.length);
-
-    setFoodPos(availPixels[idx].position);
-  };
-
-  useEffect(() => {
-    if (!gameOver) {
-      spawnFood();
-    } else {
-      if (score > highestScore) {
-        setHighestScore(score);
-      }
-    }
-  }, [gameOver, score, highestScore]);
-
-  const handleKeyDown = useCallback((e) => {
-    setDirQueue((prevQueue) => {
+  const handleKeyDown = useCallback(
+    (e) => {
       switch (e.key) {
         case "ArrowLeft":
         case "a":
         case "A":
-          return [...prevQueue, "left"];
+          dispatch({ type: "CHANGE_DIRECTION", payload: "left" });
+          break;
         case "ArrowRight":
         case "d":
         case "D":
-          return [...prevQueue, "right"];
+          dispatch({ type: "CHANGE_DIRECTION", payload: "right" });
+          break;
         case "ArrowUp":
         case "w":
         case "W":
-          return [...prevQueue, "up"];
+          dispatch({ type: "CHANGE_DIRECTION", payload: "up" });
+          break;
         case "ArrowDown":
         case "s":
         case "S":
-          return [...prevQueue, "down"];
+          dispatch({ type: "CHANGE_DIRECTION", payload: "down" });
+          break;
         default:
-          return prevQueue;
       }
-    });
-  }, []);
+    },
+    [dispatch]
+  );
 
   useEffect(() => {
     if (!gameOver) {
+      dispatch({ type: "SPAWN_FOOD" });
       window.addEventListener("keydown", handleKeyDown);
     } else {
       window.removeEventListener("keydown", handleKeyDown);
-    }
-  }, [gameOver, handleKeyDown]);
 
-  useEffect(() => {
-    // Filter out snake positions
-    const availPixels = pixels.filter(
-      (pixel) =>
-        !snakePos.some((p) => areSamePos(p, pixel.position)) &&
-        !areSamePos(foodPos, pixel.position)
-    );
-
-    if (availPixels.length === 0) {
-      setGameOver("win");
-      return;
+      if (score > highestScore) {
+        dispatch({ type: "SET_HIGHEST_SCORE" });
+      }
     }
-  }, [snakePos, foodPos]);
+  }, [gameOver, score, highestScore, handleKeyDown]);
 
   const handleReset = () => {
-    setSnakePos(initialSnakePos);
-    setGameOver(null);
-    setDirection("right");
-    setDirQueue([]);
-    setScore(0);
+    dispatch({ type: "RESET_GAME" });
   };
 
   const handlePause = () => {
-    setPaused((prevState) => !prevState);
+    dispatch({ type: "PAUSE_GAME" });
   };
 
   const handleShowGrid = (e) => {
-    setShowGrid(e.target.checked);
+    dispatch({ type: "TOGGLE_GRID", payload: e.target.checked });
   };
 
   return (
@@ -224,8 +261,8 @@ const App = () => {
         borderColor={!gameOver ? "black" : gameOver === "win" ? "green" : "red"}
       >
         <Board pixels={pixels} showGrid={showGrid} />
-        <Snake positions={snakePos} />
-        <Food position={foodPos} />
+        <Snake positions={snake} />
+        <Food position={food} />
       </Canvas>
       <ControlBar>
         <div>
@@ -233,7 +270,7 @@ const App = () => {
           <label htmlFor="showGrid">Show grid</label>
         </div>
         <div>
-          {gameOver && <button onClick={handleReset}>Play again</button>}
+          <button onClick={handleReset}>Play again</button>
           {!gameOver && (
             <button onClick={handlePause}>{paused ? "Resume" : "Pause"}</button>
           )}
