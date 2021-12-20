@@ -83,14 +83,6 @@ const reducer = (state, action) => {
       const currSnake = [...snake];
       const head = currSnake[currSnake.length - 1];
 
-      // Snake hit wall
-      if (head.y >= ROWS || head.y < 0 || head.x < 0 || head.x >= COLS) {
-        return {
-          ...state,
-          gameOver: "lose"
-        };
-      }
-
       let nextHead;
 
       switch (currentDir) {
@@ -107,6 +99,19 @@ const reducer = (state, action) => {
           nextHead = { ...head, y: head.y + 1 };
           break;
         default:
+      }
+
+      // Snake hit wall
+      if (
+        nextHead.y >= ROWS ||
+        nextHead.y < 0 ||
+        nextHead.x < 0 ||
+        nextHead.x >= COLS
+      ) {
+        return {
+          ...state,
+          gameOver: "lose"
+        };
       }
 
       // Snake hit its own body
@@ -172,7 +177,7 @@ const reducer = (state, action) => {
     case "SET_HIGHEST_SCORE":
       return {
         ...state,
-        highestScore: score > highestScore ? score : highestScore
+        highestScore: score
       };
     case "TOGGLE_GRID":
       return {
