@@ -9,9 +9,9 @@ const Food = ({ position }) => {
     <Pixel
       left={position.x * PIXEL_SIZE}
       top={position.y * PIXEL_SIZE}
-      background="blue"
+      background={Math.floor(Math.random() * 10) < 5 ? "red" : "blue"}
     />
   );
 };
 
-export default Food;
+export default React.memo(Food);
