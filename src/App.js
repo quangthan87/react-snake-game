@@ -51,7 +51,8 @@ const initialState = {
   gameOver: null,
   paused: false,
   score: 0,
-  highestScore: 0
+  highestScore: 0,
+  showGrid: false
 };
 
 const reducer = (state, action) => {
@@ -62,7 +63,8 @@ const reducer = (state, action) => {
     directionQueue,
     paused,
     score,
-    highestScore
+    highestScore,
+    showGrid
   } = state;
 
   switch (action.type) {
@@ -172,7 +174,8 @@ const reducer = (state, action) => {
     case "RESET_GAME":
       return {
         ...initialState,
-        highestScore: highestScore
+        highestScore: highestScore,
+        showGrid: showGrid
       };
     case "SET_HIGHEST_SCORE":
       return {
